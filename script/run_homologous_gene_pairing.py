@@ -15,6 +15,14 @@ print(homologous_df.columns)
 
 print(len(homologous_df)) #92566
 print(homologous_df["Gene stable ID"].duplicated().sum()) #6232
+print(homologous_df["Mouse homology type"].value_counts())
+
+"""
+Mouse homology type
+ortholog_one2one      17178
+ortholog_many2many     5426
+ortholog_one2many      2987
+"""
 
 print(mice_annotated_exons.head())
 print(mice_annotated_exons.columns)
