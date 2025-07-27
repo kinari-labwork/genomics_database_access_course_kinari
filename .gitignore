@@ -1,2 +1,4 @@
 # ignore data
 data/*
+.vscode/
+__pycache__/
