@@ -1,5 +1,5 @@
 import pandas as pd
-
+from src.homologous_gene_pairing import extract_genename_as_column, make_homologous_gene_tuple, compare_and_pair_exons
 pd.set_option('display.max_colwidth', None)  
 pd.set_option('display.max_columns', None)
 pd.set_option('display.max_rows', None)
@@ -24,7 +24,16 @@ ortholog_many2many     5426
 ortholog_one2many      2987
 """
 
-print(mice_annotated_exons.head())
 print(mice_annotated_exons.columns)
-print(human_annotated_exons.head())
 print(human_annotated_exons.columns)
+
+mice_annotated_exons = extract_genename_as_column(mice_annotated_exons)
+human_annotated_exons = extract_genename_as_column(human_annotated_exons)
+
+homologous_df = make_homologous_gene_tuple(homologous_df)
+
+paired_exons = compare_and_pair_exons(homologous_df, mice_annotated_exons.groupby('gene_id'), human_annotated_exons.groupby('gene_id'))
+
+# 結果を保存
+paired_exons_df = pd.DataFrame(paired_exons, columns=['human_gene_id', 'mouse_gene_id', 'human_exon_id', 'mouse_exon_id', 'homology_percent', 'mouse_homology_type'])
+paired_exons_df.to_pickle("./data/output/paired_exons.pkl")

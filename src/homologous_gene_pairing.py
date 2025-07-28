@@ -1,5 +1,5 @@
 import pandas as pd
-from Bio import pairwise2
+from Bio.Align import PairwiseAligner
 
 def extract_genename_as_column(annotated_exons) -> pd.DataFrame:
     """
@@ -25,7 +25,7 @@ def make_homologous_gene_tuple(homologous_df) -> tuple:
     """
     homologous_df = homologous_df.dropna(subset="Mouse gene stable ID")
     homologous_df = homologous_df[homologous_df["Mouse homology type"].isin(["ortholog_one2one", "ortholog_one2many"])]
-    homologous_tuple = tuple(zip(homologous_df["Gene stable ID"], homologous_df["Mouse gene stable ID"]))
+    homologous_tuple = tuple(zip(homologous_df["Gene stable ID"], homologous_df["Mouse gene stable ID"], homologous_df["Mouse homology type"]))
     return homologous_tuple
 
 
@@ -33,8 +33,10 @@ def calculate_homology_percent(seq1, seq2) -> float:
     """Biopythonを使って2つの配列の相同性(%)を計算する"""
     if not isinstance(seq1, str) or not isinstance(seq2, str) or not seq1 or not seq2:
         return 0.0
-    # globalxxはシンプルなスコアリング（一致:1, 不一致:0）でアライメント
-    score = pairwise2.align.globalxx(seq1, seq2, score_only=True)
+    aligner = PairwiseAligner()
+    aligner.mode = 'global'
+    alignments = aligner.align(seq1, seq2)
+    score = alignments.score  # 最初のアラインメントのスコアを取得
     # 短い方の配列長を分母にして同一性を計算
     shorter_len = min(len(seq1), len(seq2))
     return (score / shorter_len) * 100 if shorter_len > 0 else 0.0
@@ -53,8 +55,11 @@ def compare_and_pair_exons(homologous_tuple, mice_grouped, human_grouped) -> lis
     paired_exons = []
     total_genes = len(homologous_tuple)
 
+    aligner = PairwiseAligner()
+    aligner.mode = 'global'
+
     # 相同遺伝子ペアでループ
-    for homologous_gene, (human_gene_id, mouse_gene_id) in enumerate(homologous_tuple):
+    for homologous_gene, (human_gene_id, mouse_gene_id, mouse_homology_type) in enumerate(homologous_tuple):
         print(f"[{homologous_gene + 1}/{total_genes}] Comparing {human_gene_id} and {mouse_gene_id}...")
 
         # グループが存在しない場合はスキップ
@@ -86,7 +91,8 @@ def compare_and_pair_exons(homologous_tuple, mice_grouped, human_grouped) -> lis
                     "human_exon_id": h_exon['exon_id'],
                     "mouse_gene_id": mouse_gene_id,
                     "mouse_exon_id": best_mouse_exon['exon_id'],
-                    "homology_percent": round(best_score, 2)
+                    "homology_percent": round(best_score, 2),
+                    "mouse_homology_type": mouse_homology_type
                 })
 
     return paired_exons

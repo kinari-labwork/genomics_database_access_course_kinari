@@ -28,9 +28,9 @@ print(f"Number of Mice Annotated Exons: {len(mice_annotated_exons)}") #689517
 
 
 print(f"Human Annotated Exons:{human_annotated_exons.head()}")
-print(f"Number of Human Annotated Exons: {len(human_annotated_exons)}")
+print(f"Number of Human Annotated Exons: {len(human_annotated_exons)}") #899973
  
 print(f"Number of unannotated exons in Mice: {mice_annotated_exons.isna().sum()}") # 0
-print(f"Number of unannotated exons in Human: {human_annotated_exons.isna().sum()}")
+print(f"Number of unannotated exons in Human: {human_annotated_exons.isna().sum()}") # 0
 
 print(mice_annotated_exons.columns)
