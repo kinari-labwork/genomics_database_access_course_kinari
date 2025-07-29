@@ -25,7 +25,7 @@ def make_homologous_gene_tuple(homologous_df) -> tuple:
     """
     homologous_df = homologous_df.dropna(subset="Mouse gene stable ID")
     homologous_df = homologous_df[homologous_df["Mouse homology type"].isin(["ortholog_one2one", "ortholog_one2many"])]
-    homologous_tuple = tuple(zip(homologous_df["Gene stable ID"], homologous_df["Mouse gene stable ID"], homologous_df["Mouse homology type"]))
+    homologous_tuple = tuple(zip(homologous_df["Gene stable ID"], homologous_df["Mouse gene stable ID"], homologous_df["Mouse homology type"], ))
     return homologous_tuple
 
 
@@ -35,6 +35,11 @@ def calculate_homology_percent(seq1, seq2) -> float:
         return 0.0
     aligner = PairwiseAligner()
     aligner.mode = 'global'
+    aligner.match_score = 1
+    aligner.mismatch_score = -1
+    aligner.open_gap_score = -2
+    aligner.extend_gap_score = -0.5
+    
     alignments = aligner.align(seq1, seq2)
     score = alignments.score  # 最初のアラインメントのスコアを取得
     # 短い方の配列長を分母にして同一性を計算
