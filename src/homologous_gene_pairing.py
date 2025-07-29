@@ -25,7 +25,10 @@ def make_homologous_gene_tuple(homologous_df) -> tuple:
     """
     homologous_df = homologous_df.dropna(subset="Mouse gene stable ID")
     homologous_df = homologous_df[homologous_df["Mouse homology type"].isin(["ortholog_one2one", "ortholog_one2many"])]
-    homologous_tuple = tuple(zip(homologous_df["Gene stable ID"], homologous_df["Mouse gene stable ID"], homologous_df["Mouse homology type"], ))
+    homologous_tuple = tuple(zip(homologous_df["Gene stable ID"], 
+                                 homologous_df["Mouse gene stable ID"], 
+                                 homologous_df["Mouse homology type"], 
+                                 homologous_df["%id. query gene identical to target Mouse gene"]))
     return homologous_tuple
 
 
@@ -64,7 +67,7 @@ def compare_and_pair_exons(homologous_tuple, mice_grouped, human_grouped) -> lis
     aligner.mode = 'global'
 
     # 相同遺伝子ペアでループ
-    for homologous_gene, (human_gene_id, mouse_gene_id, mouse_homology_type) in enumerate(homologous_tuple):
+    for homologous_gene, (human_gene_id, mouse_gene_id, mouse_homology_type, overall_homology_percent) in enumerate(homologous_tuple):
         print(f"[{homologous_gene + 1}/{total_genes}] Comparing {human_gene_id} and {mouse_gene_id}...")
 
         # グループが存在しない場合はスキップ
@@ -97,7 +100,8 @@ def compare_and_pair_exons(homologous_tuple, mice_grouped, human_grouped) -> lis
                     "mouse_gene_id": mouse_gene_id,
                     "mouse_exon_id": best_mouse_exon['exon_id'],
                     "homology_percent": round(best_score, 2),
-                    "mouse_homology_type": mouse_homology_type
+                    "mouse_homology_type": mouse_homology_type,
+                    "overall_homology_percent": overall_homology_percent
                 })
 
     return paired_exons

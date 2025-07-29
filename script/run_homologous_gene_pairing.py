@@ -35,5 +35,5 @@ homologous_df = make_homologous_gene_tuple(homologous_df)
 paired_exons = compare_and_pair_exons(homologous_df, mice_annotated_exons.groupby('gene_id'), human_annotated_exons.groupby('gene_id'))
 
 # 結果を保存
-paired_exons_df = pd.DataFrame(paired_exons, columns=['human_gene_id', 'mouse_gene_id', 'human_exon_id', 'mouse_exon_id', 'homology_percent', 'mouse_homology_type'])
+paired_exons_df = pd.DataFrame(paired_exons, columns=['human_gene_id', 'mouse_gene_id', 'human_exon_id', 'mouse_exon_id', 'homology_percent', 'mouse_homology_type', 'overall_homology_percent'])
 paired_exons_df.to_pickle("./data/output/paired_exons.pkl")
