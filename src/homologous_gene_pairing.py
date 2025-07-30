@@ -47,7 +47,7 @@ def calculate_homology_percent(seq1, seq2) -> float:
     score = alignments.score  # 最初のアラインメントのスコアを取得
     # 短い方の配列長を分母にして同一性を計算
     shorter_len = min(len(seq1), len(seq2))
-    return (score / shorter_len) * 100 if shorter_len > 0 else 0.0
+    return (score / shorter_len) * 100 if shorter_len > 0 else 0.0 # scoreをmatchに変えて実行することもできる
 
 def compare_and_pair_exons(homologous_tuple, mice_grouped, human_grouped) -> list:
     """
