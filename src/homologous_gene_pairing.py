@@ -1,6 +1,9 @@
 import pandas as pd
 import numpy as np
 from Bio.Align import PairwiseAligner
+from multiprocessing import Pool
+from tqdm import tqdm  # 進捗バー用ライブラリ
+
 
 def extract_genename_as_column(annotated_exons) -> pd.DataFrame:
     """
@@ -45,59 +48,50 @@ def calculate_homology_percent(seq1, seq2) -> float:
     identity = np.sum(difference)
     return (identity / len(seq1)) * 100 if len(seq1) > 0 else 0.0 # scoreをmatchに変えて実行することもできる
 
-def compare_and_pair_exons(homologous_tuple, mice_grouped, human_grouped) -> list:
-    """
-    Purpose: 相同遺伝子内のエキソンをペアワイズ比較し、
-             各ヒトエキソンに対し最も相同性の高いマウスエキソンをペアリングする
-    Input:
-        homologous_tuple (list of tuple): マウスとヒトの遺伝子ペア
-        mice_grouped (DataFrameGroupBy): マウスのエキソン情報（'sequence'列を含む）
-        human_grouped (DataFrameGroupBy): ヒトのエキソン情報（'sequence'列を含む）
-    Output:
-        paired_exons (list): ペアリング結果を格納したリスト
-    """
+def calculate_homology_for_exon_pair(args):
+    h_exon, mouse_exons_df, human_gene_id, mouse_gene_id, mouse_homology_type, overall_homology_percent = args
+    best_score = -1
+    best_mouse_exon = None
+
+    for _, m_exon in mouse_exons_df.iterrows():
+        homology_score = calculate_homology_percent(h_exon['sequence'], m_exon['sequence'])
+        if homology_score > best_score:
+            best_score = homology_score
+            best_mouse_exon = m_exon
+
+    if best_mouse_exon is not None:
+        return {
+            "human_gene_id": human_gene_id,
+            "human_exon_id": h_exon['exon_id'],
+            "mouse_gene_id": mouse_gene_id,
+            "mouse_exon_id": best_mouse_exon['exon_id'],
+            "homology_percent": round(best_score, 2),
+            "mouse_homology_type": mouse_homology_type,
+            "overall_homology_percent": overall_homology_percent
+        }
+    return None
+
+def compare_and_pair_exons_parallel(homologous_tuple, mice_grouped, human_grouped) -> list:
     paired_exons = []
     total_genes = len(homologous_tuple)
 
-    aligner = PairwiseAligner()
-    aligner.mode = 'global'
-
-    # 相同遺伝子ペアでループ
+    tasks = []
     for homologous_gene, (human_gene_id, mouse_gene_id, mouse_homology_type, overall_homology_percent) in enumerate(homologous_tuple):
-        print(f"[{homologous_gene + 1}/{total_genes}] Comparing {human_gene_id} and {mouse_gene_id}...")
+        print(f"[{homologous_gene + 1}/{total_genes}] Preparing tasks for {human_gene_id} and {mouse_gene_id}...")
 
-        # グループが存在しない場合はスキップ
         if mouse_gene_id not in mice_grouped.groups or human_gene_id not in human_grouped.groups:
             continue
 
         mouse_exons_df = mice_grouped.get_group(mouse_gene_id)
         human_exons_df = human_grouped.get_group(human_gene_id)
 
-        # 各ヒトエキソンについてループ
         for _, h_exon in human_exons_df.iterrows():
-            best_score = -1
-            best_mouse_exon = None
+            tasks.append((h_exon, mouse_exons_df, human_gene_id, mouse_gene_id, mouse_homology_type, overall_homology_percent))
 
-            # 全てのマウスエキソンと総当たりで比較
-            for _, m_exon in mouse_exons_df.iterrows():
-                # 相同性を計算
-                homology_score = calculate_homology_percent(h_exon['sequence'], m_exon['sequence'])
-                
-                # これまでで最もスコアが高ければ更新
-                if homology_score > best_score:
-                    best_score = homology_score
-                    best_mouse_exon = m_exon
-            
-            # ベストマッチが見つかった場合、そのペアの情報を保存
-            if best_mouse_exon is not None:
-                paired_exons.append({
-                    "human_gene_id": human_gene_id,
-                    "human_exon_id": h_exon['exon_id'],
-                    "mouse_gene_id": mouse_gene_id,
-                    "mouse_exon_id": best_mouse_exon['exon_id'],
-                    "homology_percent": round(best_score, 2),
-                    "mouse_homology_type": mouse_homology_type,
-                    "overall_homology_percent": overall_homology_percent
-                })
+    # 並列処理でタスクを実行
+    with Pool() as pool:
+        results = list(tqdm(pool.imap(calculate_homology_for_exon_pair, tasks), total=len(tasks), desc="Processing tasks"))
 
+    # 結果を収集
+    paired_exons = [result for result in results if result is not None]
     return paired_exons

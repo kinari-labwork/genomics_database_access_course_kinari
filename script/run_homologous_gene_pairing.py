@@ -1,5 +1,5 @@
 import pandas as pd
-from src.homologous_gene_pairing import extract_genename_as_column, make_homologous_gene_tuple, compare_and_pair_exons
+from src.homologous_gene_pairing import extract_genename_as_column, make_homologous_gene_tuple, compare_and_pair_exons_parallel
 pd.set_option('display.max_colwidth', None)  
 pd.set_option('display.max_columns', None)
 pd.set_option('display.max_rows', None)
@@ -30,9 +30,12 @@ print(human_annotated_exons.columns)
 mice_annotated_exons = extract_genename_as_column(mice_annotated_exons)
 human_annotated_exons = extract_genename_as_column(human_annotated_exons)
 
+mice_grouped = mice_annotated_exons.groupby('gene_id')
+human_grouped = human_annotated_exons.groupby('gene_id')
+
 homologous_df = make_homologous_gene_tuple(homologous_df)
 
-paired_exons = compare_and_pair_exons(homologous_df, mice_annotated_exons.groupby('gene_id'), human_annotated_exons.groupby('gene_id'))
+paired_exons = compare_and_pair_exons_parallel(homologous_tuple=homologous_df, mice_grouped=mice_grouped, human_grouped=human_grouped)
 
 # 結果を保存
 paired_exons_df = pd.DataFrame(paired_exons, columns=['human_gene_id', 'mouse_gene_id', 'human_exon_id', 'mouse_exon_id', 'homology_percent', 'mouse_homology_type', 'overall_homology_percent'])
