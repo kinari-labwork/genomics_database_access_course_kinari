@@ -35,19 +35,13 @@ def make_homologous_gene_tuple(homologous_df) -> tuple:
 def calculate_homology_percent(seq1, seq2) -> float:
     """Biopythonを使って2つの配列の相同性(%)を計算する"""
     if not isinstance(seq1, str) or not isinstance(seq2, str) or not seq1 or not seq2:
-        return 0.0
+        return 0.0 
     aligner = PairwiseAligner()
-    aligner.mode = 'global'
-    aligner.match_score = 1
-    aligner.mismatch_score = -1
-    aligner.open_gap_score = -2
-    aligner.extend_gap_score = -0.5
-    
-    alignments = aligner.align(seq1, seq2)
-    score = alignments.score  # 最初のアラインメントのスコアを取得
+    aligner.mode = 'global'  # グローバルアライメントを使用
+    alignment = aligner.align(seq1, seq2)
     # 短い方の配列長を分母にして同一性を計算
-    shorter_len = min(len(seq1), len(seq2))
-    return (score / shorter_len) * 100 if shorter_len > 0 else 0.0 # scoreをmatchに変えて実行することもできる
+    matches = sum(1 for a, b in zip(alignment.aligned[0], alignment.aligned[1]) if a == b)
+    return (matches / len(seq1)) * 100 if len(seq1) > 0 else 0.0 # scoreをmatchに変えて実行することもできる
 
 def compare_and_pair_exons(homologous_tuple, mice_grouped, human_grouped) -> list:
     """
