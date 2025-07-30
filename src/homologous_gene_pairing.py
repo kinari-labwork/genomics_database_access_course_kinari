@@ -36,62 +36,102 @@ def make_homologous_gene_tuple(homologous_df) -> tuple:
     return homologous_tuple
 
 
-def calculate_homology_percent(seq1, seq2) -> float:
-    """Biopythonを使って2つの配列の相同性(%)を計算する"""
-    if not isinstance(seq1, str) or not isinstance(seq2, str) or not seq1 or not seq2:
-        return 0.0 
+def calculate_identity(seq1: str, seq2: str) -> float:
+    """
+    Biopythonを使って2つの配列の同一性(identity %)を計算する。
+    同一性 = (一致した残基数 / アライメント長) * 100
+    """
+    # 配列が空、または文字列でない場合は0を返す
+    if not all(isinstance(s, str) and s for s in [seq1, seq2]):
+        return 0.0
+
     aligner = PairwiseAligner()
-    aligner.mode = 'global'  # グローバルアライメントを使用
+    aligner.mode = 'global'
+    # スコアリングは結果に影響しないが、アライメントの質のために設定
+    aligner.match_score = 1
+    aligner.mismatch_score = -1
+    aligner.open_gap_score = -2
+    aligner.extend_gap_score = -0.5
+
+    # alignメソッドはアライメントのリストを返す
     alignments = aligner.align(seq1, seq2)
+
     alignment = alignments[0]
-    difference = np.array(alignment.aligned)[0][:, 1] - np.array(alignment.aligned)[0][:, 0]
-    identity = np.sum(difference)
-    return (identity / len(seq1)) * 100 if len(seq1) > 0 else 0.0 # scoreをmatchに変えて実行することもできる
+    
+    # アライメントされた配列を取得 (例: 'AT-G' と 'ATTG')
+    aligned_seq1, aligned_seq2 = alignment
+    
+    # 一致する残基の数を数える
+    matches = sum(c1 == c2 for c1, c2 in zip(aligned_seq1, aligned_seq2))
+    
+    # アライメントの全長（ギャップ含む）
+    alignment_length = len(aligned_seq1)
 
-def calculate_homology_for_exon_pair(args):
-    h_exon, mouse_exons_df, human_gene_id, mouse_gene_id, mouse_homology_type, overall_homology_percent = args
-    best_score = -1
-    best_mouse_exon = None
+    # 同一性を計算
+    return (matches / alignment_length) * 100 if alignment_length > 0 else 0.0
 
-    for _, m_exon in mouse_exons_df.iterrows():
-        homology_score = calculate_homology_percent(h_exon['sequence'], m_exon['sequence'])
-        if homology_score > best_score:
-            best_score = homology_score
-            best_mouse_exon = m_exon
+def process_gene_pair(args):
+    """
+    【並列処理のワーカー関数】
+    1つの遺伝子ペア（ヒトとマウス）を受け取り、その中で最も相同性の高いエクソンペアを見つける。
+    """
+    human_gene_id, mouse_gene_id, mouse_homology_type, overall_homology_percent, human_exons_df, mouse_exons_df = args
+    
+    paired_results_for_gene = []
 
-    if best_mouse_exon is not None:
-        return {
-            "human_gene_id": human_gene_id,
-            "human_exon_id": h_exon['exon_id'],
-            "mouse_gene_id": mouse_gene_id,
-            "mouse_exon_id": best_mouse_exon['exon_id'],
-            "homology_percent": round(best_score, 2),
-            "mouse_homology_type": mouse_homology_type,
-            "overall_homology_percent": overall_homology_percent
-        }
-    return None
+    # このヒト遺伝子に属する各エクソンについてループ
+    for _, h_exon in human_exons_df.iterrows():
+        best_score = -1
+        best_mouse_exon = None
+
+        # 対応するマウス遺伝子の全エクソンと比較
+        for _, m_exon in mouse_exons_df.iterrows():
+            # 上で修正した identity 計算関数を呼び出す
+            identity_score = calculate_identity(h_exon['sequence'], m_exon['sequence'])
+            
+            if identity_score > best_score:
+                best_score = identity_score
+                best_mouse_exon = m_exon
+
+        if best_mouse_exon is not None:
+            paired_results_for_gene.append({
+                "human_gene_id": human_gene_id,
+                "human_exon_id": h_exon['exon_id'],
+                "mouse_gene_id": mouse_gene_id,
+                "mouse_exon_id": best_mouse_exon['exon_id'],
+                "homology_percent": round(best_score, 2),
+                "mouse_homology_type": mouse_homology_type,
+                "overall_homology_percent": overall_homology_percent
+            })
+            
+    return paired_results_for_gene
+
 
 def compare_and_pair_exons_parallel(homologous_tuple, mice_grouped, human_grouped) -> list:
-    paired_exons = []
-    total_genes = len(homologous_tuple)
-
+    """
+    【メイン関数】遺伝子ペア単位でタスクを準備し、並列処理を実行する
+    """
     tasks = []
-    for homologous_gene, (human_gene_id, mouse_gene_id, mouse_homology_type, overall_homology_percent) in enumerate(homologous_tuple):
-        print(f"[{homologous_gene + 1}/{total_genes}] Preparing tasks for {human_gene_id} and {mouse_gene_id}...")
+    print("Preparing tasks for parallel processing (one task per gene pair)...")
+    # 遺伝子ペアごとにタスクを作成する
+    for human_gene_id, mouse_gene_id, mouse_homology_type, overall_homology_percent in tqdm(homologous_tuple, desc="Preparing tasks"):
+        # 必要なエクソンデータが存在するか確認
+        if mouse_gene_id in mice_grouped.groups and human_gene_id in human_grouped.groups:
+            mouse_exons_df = mice_grouped.get_group(mouse_gene_id)
+            human_exons_df = human_grouped.get_group(human_gene_id)
+            
+            # 必要な情報をすべてタプルにまとめる
+            tasks.append((human_gene_id, mouse_gene_id, mouse_homology_type, overall_homology_percent, human_exons_df, mouse_exons_df))
 
-        if mouse_gene_id not in mice_grouped.groups or human_gene_id not in human_grouped.groups:
-            continue
-
-        mouse_exons_df = mice_grouped.get_group(mouse_gene_id)
-        human_exons_df = human_grouped.get_group(human_gene_id)
-
-        for _, h_exon in human_exons_df.iterrows():
-            tasks.append((h_exon, mouse_exons_df, human_gene_id, mouse_gene_id, mouse_homology_type, overall_homology_percent))
-
+    print(f"Total {len(tasks)} gene pairs to process.")
+    
     # 並列処理でタスクを実行
     with Pool() as pool:
-        results = list(tqdm(pool.imap(calculate_homology_for_exon_pair, tasks), total=len(tasks), desc="Processing tasks"))
-
-    # 結果を収集
-    paired_exons = [result for result in results if result is not None]
-    return paired_exons
+        # pool.imap_unorderedを使うと、完了したタスクから順次結果を受け取れるため、メモリ効率が良い
+        all_paired_exons = []
+        for result in tqdm(pool.imap_unordered(process_gene_pair, tasks), total=len(tasks), desc="Pairing exons"):
+            # 各遺伝子ペアの結果（リスト）を統合していく
+            if result:
+                all_paired_exons.extend(result)
+    
+    return all_paired_exons

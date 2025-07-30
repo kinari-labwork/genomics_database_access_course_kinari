@@ -1,5 +1,5 @@
 import pandas as pd
-from src.homologous_gene_pairing import extract_genename_as_column, make_homologous_gene_tuple, compare_and_pair_exons_parallel
+from src.homologous_gene_pairing import extract_genename_as_column, make_homologous_gene_tuple, compare_and_pair_exons_parallel, calculate_identity
 pd.set_option('display.max_colwidth', None)  
 pd.set_option('display.max_columns', None)
 pd.set_option('display.max_rows', None)
