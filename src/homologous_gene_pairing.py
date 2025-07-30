@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 from Bio.Align import PairwiseAligner
 
 def extract_genename_as_column(annotated_exons) -> pd.DataFrame:
@@ -38,10 +39,11 @@ def calculate_homology_percent(seq1, seq2) -> float:
         return 0.0 
     aligner = PairwiseAligner()
     aligner.mode = 'global'  # グローバルアライメントを使用
-    alignment = aligner.align(seq1, seq2)
-    # 短い方の配列長を分母にして同一性を計算
-    matches = sum(1 for a, b in zip(alignment.aligned[0], alignment.aligned[1]) if a == b)
-    return (matches / len(seq1)) * 100 if len(seq1) > 0 else 0.0 # scoreをmatchに変えて実行することもできる
+    alignments = aligner.align(seq1, seq2)
+    alignment = alignments[0]
+    difference = np.array(alignment.aligned)[0][:, 1] - np.array(alignment.aligned)[0][:, 0]
+    identity = np.sum(difference)
+    return (identity / len(seq1)) * 100 if len(seq1) > 0 else 0.0 # scoreをmatchに変えて実行することもできる
 
 def compare_and_pair_exons(homologous_tuple, mice_grouped, human_grouped) -> list:
     """
